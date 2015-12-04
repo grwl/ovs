@@ -54,7 +54,7 @@ SCRIPT
 
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   config.vm.define "fedora-20" do |fedora|
-       fedora.vm.box = "chef/fedora-20"
+       fedora.vm.box = "fedora20"
        fedora.vm.provision "bootstrap", type: "shell", inline: $bootstrap_fedora
        fedora.vm.provision "configure_ovs", type: "shell", inline: $configure_ovs
        fedora.vm.provision "build_ovs", type: "shell", inline: $build_ovs
