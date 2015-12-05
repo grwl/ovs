@@ -10,7 +10,7 @@ yum -y update
 yum -y install autoconf automake openssl-devel libtool \
                python-twisted-core python-zope-interface PyQt4 \
                desktop-file-utils groff graphviz rpmdevtools \
-               kernel-devel-`uname -r`
+               kernel-devel-`uname -r` libcap-ng-devel
 echo "search extra update built-in" >/etc/depmod.d/search_path.conf
 cd /vagrant
 ./boot.sh
@@ -52,8 +52,21 @@ cd ~/build
 make check-system-userspace
 SCRIPT
 
+$install_vtun_fedora = <<SCRIPT
+yum install -y vtun
+
+ln -sf /vagrant/marvin2/etc-sysconfig-vtun-fedora /etc/sysconfig/vtun
+ln -sf /vagrant/marvin2/etc-vtund-conf-fedora /etc/vtund.conf
+cp /vagrant/marvin2/etc-rc-d-rc-local /etc/rc.d/rc.local
+
+systemctl enable vtun
+systemctl start vtun
+systemctl status vtun
+SCRIPT
+
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   config.vm.define "fedora-20" do |fedora|
+       fedora.vm.network :forwarded_port, guest: 5000, host: 5000
        fedora.vm.box = "fedora20"
        fedora.vm.provision "bootstrap", type: "shell", inline: $bootstrap_fedora
        fedora.vm.provision "configure_ovs", type: "shell", inline: $configure_ovs
@@ -61,5 +74,6 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
        fedora.vm.provision "test_ovs_kmod", type: "shell", inline: $test_kmod
        fedora.vm.provision "test_ovs_system_userspace", type: "shell", inline: $test_ovs_system_userspace
        fedora.vm.provision "install_rpm", type: "shell", inline: $install_rpm
+       fedora.vm.provision "install_vtun", type: "shell", inline: $install_vtun_fedora
   end
 end
