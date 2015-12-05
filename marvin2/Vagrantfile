@@ -1,0 +1,42 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+# Vagrantfile API/syntax version. Don't touch unless you know what you're doing!
+VAGRANTFILE_API_VERSION = "2"
+Vagrant.require_version ">=1.7.0"
+
+$install_vtun_ubuntu = <<SCRIPT
+sed -i 's/^INTERFACE_NO_DEFAULT_ROUTE/#INTERFACE_NO_DEFAULT_ROUTE/' /etc/dhcp/dhclient-enter-hooks.d/xx__no_gateway_n_dns
+sh -c 'ifdown eth0 ; ifup eth0'
+
+apt-get update
+apt-get install -y vtun
+
+sed -i 's/^#INTERFACE_NO_DEFAULT_ROUTE/INTERFACE_NO_DEFAULT_ROUTE/' /etc/dhcp/dhclient-enter-hooks.d/xx__no_gateway_n_dns
+sh -c 'ifdown eth0 ; ifup eth0'
+
+ln -sf /vagrant/etc-default-vtun-%{name} /etc/default/vtun
+ln -sf /vagrant/etc-vtund-conf-%{name} /etc/vtund.conf
+
+mkdir -p /var/lock/vtund
+
+service vtun restart
+SCRIPT
+
+Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
+  config.vm.define "alice" do |alice|
+    alice.vm.box = "gremwell/ubuntu-trusty64-l2"
+    alice.vm.provision "shell", inline: ($install_vtun_ubuntu % {name: "alice"})
+  end
+
+  config.vm.define "bob" do |bob|
+    bob.vm.box = "gremwell/ubuntu-trusty64-l2"
+    bob.vm.provision "shell", inline: ($install_vtun_ubuntu % {name: "bob"})
+  end
+
+  config.vm.define "mallory" do |mallory|
+    mallory.vm.box = "gremwell/ubuntu-trusty64-l2"
+    mallory.vm.provision "shell", inline: ($install_vtun_ubuntu % {name: "mallory"})
+  end
+end
+

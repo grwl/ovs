@@ -1,0 +1,44 @@
+options {
+  port 5000;
+
+  # Syslog facility
+  syslog        daemon;
+
+  # Path to various programs
+  ppp           /usr/sbin/pppd;
+  ifconfig      /sbin/ifconfig;
+  route         /sbin/route;
+  firewall      /sbin/ipchains;
+  ip            /sbin/ip;
+}
+
+# Default session options
+default {
+  compress no;          # Compression is off by default
+  speed 0;              # By default maximum speed, NO shaping
+  encrypt no;            # Encryption
+  type  ether;
+  #proto udp;            # UDP protocol
+  proto tcp;
+  keepalive yes;        # Keep connection alive
+  multi no;
+}
+
+#############################################################
+alice {
+  passwd alice;
+  device tap1;
+}
+
+#############################################################
+bob {
+  passwd  bob;
+  device tap2;
+}
+
+#############################################################
+mallory {
+  passwd  mallory;
+  device tap3;
+}
+

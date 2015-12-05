@@ -1,0 +1,16 @@
+# Comment out one of the following for client or server mode
+#
+# To run vtun as a server:
+#
+OPTIONS='-s'
+#
+#
+#
+#To run vtun as a client, we need:
+#
+#  - session name, e.g. "lion"; must be present in both client and server
+#    config files.
+#
+#  - server address or host name.
+#
+#OPTIONS='lion vtun-server.example.com'

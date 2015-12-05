@@ -1,0 +1,50 @@
+
+table=0,icmp,action=goto_table:1
+table=0,udp,action=goto_table:1
+table=0,tcp,action=goto_table:1
+table=0,arp,action=goto_table:2
+table=0,priority=0,action=goto_table:3
+
+# conntrackable packet
+table=1,ct_state=-trk,ct(zone=1,table=11)
+table=1,priority=0,action=drop
+
+# ARP
+table=2,in_port=1,action=output:2
+table=2,in_port=2,action=output:1,3
+table=2,in_port=3,action=output:2
+table=2,priority=0,action=drop
+
+# non-conntrackable packet
+table=3,in_port=1,action=output:2
+table=3,in_port=2,action=output:1
+table=3,in_port=3,action=drop
+table=3,priority=0,action=drop
+
+# new connection
+table=4,in_port=1,action=ct(zone=1,commit),output:2
+table=4,in_port=2,action=ct(zone=2,commit),output:1
+table=4,in_port=3,action=ct(zone=3,commit),output:2
+table=4,priority=0,action=drop
+
+# known flow originated from 1
+table=11,ct_state=+trk+new,ct(zone=2,table=12)
+table=11,ct_state=+trk+est,in_port=1,action=output:2
+table=11,ct_state=+trk+est,in_port=2,action=output:1
+table=11,ct_state=+trk+est,in_port=3,action=drop
+table=11,priority=0,action=drop
+
+# known flow originated from 2
+table=12,ct_state=+trk+new,ct(zone=3,table=13)
+table=12,ct_state=+trk+est,in_port=1,action=output:2
+table=12,ct_state=+trk+est,in_port=2,action=output:1
+table=12,ct_state=+trk+est,in_port=3,action=drop
+table=12,priority=0,action=drop
+
+# known flow originated from 3
+table=13,ct_state=+trk+new,goto_table:4
+table=13,ct_state=+trk+est,in_port=1,action=drop
+table=13,ct_state=+trk+est,in_port=2,action=output:3
+table=13,ct_state=+trk+est,in_port=3,action=output:2
+table=13,priority=0,action=drop
+

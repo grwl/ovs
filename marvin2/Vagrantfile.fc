@@ -1,0 +1,116 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+# Vagrantfile API/syntax version. Don't touch unless you know what you're doing!
+VAGRANTFILE_API_VERSION = "2"
+Vagrant.require_version ">=1.7.0"
+
+$bootstrap_fedora = <<SCRIPT
+yum -y update
+yum -y install autoconf automake openssl-devel libtool libcap-ng-devel libnetfilter_conntrack-devel conntrack tcpdump \
+               python-twisted-core python-zope-interface PyQt4 \
+               desktop-file-utils groff graphviz rpmdevtools \
+               kernel-devel-`uname -r`
+echo "search extra update built-in" >/etc/depmod.d/search_path.conf
+cd /vagrant
+./boot.sh
+SCRIPT
+
+$configure_ovs = <<SCRIPT
+mkdir -p ~/build
+cd ~/build
+/vagrant/configure --with-linux=/lib/modules/`uname -r`/build
+SCRIPT
+
+$build_ovs = <<SCRIPT
+cd ~/build
+make
+SCRIPT
+
+$test_kmod = <<SCRIPT
+cd ~/build
+make check-kmod
+SCRIPT
+
+$install_rpm = <<SCRIPT
+mkdir -p ~/build
+cd ~/build
+PACKAGE_VERSION=`autom4te -l Autoconf -t 'AC_INIT:$2' /vagrant/configure.ac`
+make dist
+rpmdev-setuptree
+cp openvswitch-$PACKAGE_VERSION.tar.gz $HOME/rpmbuild/SOURCES
+rpmbuild --bb -D "kversion `uname -r`" -D "kflavors default" /vagrant/rhel/openvswitch-kmod-fedora.spec
+rpmbuild --bb --without check /vagrant/rhel/openvswitch-fedora.spec
+rpm -e openvswitch openvswitch-kmod
+rpm -ivh $HOME/rpmbuild/RPMS/x86_64/openvswitch-$PACKAGE_VERSION-1.fc22.x86_64.rpm
+rpm -ivh $HOME/rpmbuild/RPMS/x86_64/openvswitch-kmod-$PACKAGE_VERSION-1.fc22.x86_64.rpm
+systemctl enable openvswitch
+systemctl start openvswitch
+systemctl status openvswitch
+SCRIPT
+
+$test_ovs_system_userspace = <<SCRIPT
+cd ~/build
+make check-system-userspace
+SCRIPT
+
+$install_vtun_ubuntu = <<SCRIPT
+sed -i 's/^INTERFACE_NO_DEFAULT_ROUTE/#INTERFACE_NO_DEFAULT_ROUTE/' /etc/dhcp/dhclient-enter-hooks.d/xx__no_gateway_n_dns
+sh -c 'ifdown eth0 ; ifup eth0'
+
+apt-get update
+apt-get install -y vtun
+
+sed -i 's/^#INTERFACE_NO_DEFAULT_ROUTE/INTERFACE_NO_DEFAULT_ROUTE/' /etc/dhcp/dhclient-enter-hooks.d/xx__no_gateway_n_dns
+sh -c 'ifdown eth0 ; ifup eth0'
+
+ln -sf /vagrant/etc-default-vtun-%{name} /etc/default/vtun
+ln -sf /vagrant/etc-vtund-conf-%{name} /etc/vtund.conf
+
+mkdir -p /var/lock/vtund
+
+service vtun restart
+SCRIPT
+
+$install_vtun_fedora = <<SCRIPT
+yum install -y vtun
+
+ln -sf /vagrant/etc-sysconfig-vtun-fedora /etc/sysconfig/vtun
+ln -sf /vagrant/etc-vtund-conf-fedora /etc/vtund.conf
+cp /vagrant/etc-rc-d-rc-local /etc/rc.d/rc.local
+
+systemctl enable vtun
+systemctl start vtun
+systemctl status vtun
+SCRIPT
+
+Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
+  config.vm.define "fedora" do |fedora|
+       fedora.vm.box = "boxcutter/fedora22"
+       fedora.vm.provision "bootstrap", type: "shell", inline: $bootstrap_fedora
+       fedora.vm.provision "configure_ovs", type: "shell", inline: $configure_ovs
+       #fedora.vm.provision "build_ovs", type: "shell", inline: $build_ovs
+       #fedora.vm.provision "test_ovs_kmod", type: "shell", inline: $test_kmod
+       #fedora.vm.provision "test_ovs_system_userspace", type: "shell", inline: $test_ovs_system_userspace
+       fedora.vm.provision "install_rpm", type: "shell", inline: $install_rpm
+       fedora.vm.provision "install_vtun", type: "shell", inline: $install_vtun_fedora
+
+       fedora.vm.network :forwarded_port, guest: 5000, host: 5000
+  end
+
+  config.vm.define "alice" do |alice|
+    alice.vm.box = "gremwell/ubuntu-trusty64-l2"
+    alice.vm.provision "shell", inline: ($install_vtun_ubuntu % {name: "alice"})
+  end
+
+  config.vm.define "bob" do |bob|
+    bob.vm.box = "gremwell/ubuntu-trusty64-l2"
+    bob.vm.provision "shell", inline: ($install_vtun_ubuntu % {name: "bob"})
+  end
+
+  config.vm.define "mallory" do |mallory|
+    mallory.vm.box = "gremwell/ubuntu-trusty64-l2"
+    mallory.vm.provision "shell", inline: ($install_vtun_ubuntu % {name: "mallory"})
+  end
+end
+
